@@ -362,6 +362,40 @@ footer a { color: #bbb; text-decoration: none; }
 @keyframes emblemIn{from{opacity:0;transform:translateY(10px) scale(.92)}to{opacity:1;transform:translateY(0) scale(1)}}
 @media (prefers-reduced-motion: reduce){*,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;scroll-behavior:auto!important;transition-duration:.01ms!important}}
 
+
+/* Functional memory archive */
+.memory-workspace{margin-top:26px;padding:clamp(20px,4vw,34px);border:1px solid #303030;background:#070707}
+.memory-workspace-head{display:flex;justify-content:space-between;align-items:flex-start;gap:18px;flex-wrap:wrap;margin-bottom:24px}
+.memory-workspace h3{font-family:var(--display);font-size:clamp(25px,4vw,36px);font-weight:400;margin:4px 0}
+.memory-status{font-size:12px;color:#aaa;margin:8px 0 0}
+.memory-form{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.memory-field{display:flex;flex-direction:column;gap:7px}
+.memory-field.full{grid-column:1/-1}
+.memory-field label{font-size:10px;color:#aaa;letter-spacing:1.5px;text-transform:uppercase}
+.memory-field input,.memory-field textarea{width:100%;min-width:0;background:#0c0c0c;color:#fff;border:1px solid #353535;padding:13px 14px;border-radius:0;font:inherit;font-size:14px}
+.memory-field input:focus,.memory-field textarea:focus{outline:1px solid #aaa;border-color:#aaa}
+.memory-field input[type=file]{font-size:12px}
+.memory-field textarea{min-height:95px;resize:vertical}
+.memory-form-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:18px}
+.memory-form .btn{appearance:none}
+.memory-list-head{display:flex;justify-content:space-between;align-items:center;gap:12px;margin:34px 0 15px;padding-top:22px;border-top:1px solid #292929}
+.memory-list-head h4{margin:0;font-size:12px;letter-spacing:2px;font-weight:500;text-transform:uppercase}
+.memory-count{font-size:11px;color:#888}
+.memory-empty{padding:25px 18px;border:1px dashed #333;color:#888;font-size:13px;text-align:center}
+.saved-memory-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+.saved-memory{border:1px solid #292929;background:#0b0b0b;min-width:0}
+.saved-memory img{display:block;width:100%;max-height:330px;aspect-ratio:4/3;object-fit:cover;background:#111}
+.saved-memory-copy{padding:17px}
+.saved-memory-date{font-size:10px;letter-spacing:1.5px;color:#888}
+.saved-memory h5{font-size:18px;font-weight:500;margin:7px 0}
+.saved-memory p{font-size:13px;color:#aaa;white-space:pre-wrap;overflow-wrap:anywhere;margin:0}
+.saved-memory-actions{display:flex;gap:8px;margin-top:15px;flex-wrap:wrap}
+.text-action{border:1px solid #393939;background:transparent;color:#ddd;padding:8px 11px;font-size:10px;letter-spacing:1px;text-transform:uppercase;cursor:pointer}
+.text-action:hover{border-color:#aaa;color:white}
+.text-action.danger{color:#aaa}
+.memory-private-note{font-size:11px;color:#777;margin:17px 0 0}
+@media(max-width:600px){.memory-form{grid-template-columns:1fr}.memory-field.full{grid-column:auto}.saved-memory-grid{grid-template-columns:1fr}.memory-workspace{padding:18px}.saved-memory img{max-height:300px}}
+
 </style>
 </head>
 
@@ -421,6 +455,47 @@ footer a { color: #bbb; text-decoration: none; }
         <h3>Captured Frames</h3>
         <p>A future gallery for photographs you personally select and approve for publication.</p>
       </article>
+    </div>
+
+
+    <div class="memory-workspace reveal" id="memoryWorkspace">
+      <div class="memory-workspace-head">
+        <div>
+          <span class="kicker">YOUR PERSONAL ARCHIVE</span>
+          <h3>Keep a moment.</h3>
+          <p class="memory-status" id="memoryStatus" role="status" aria-live="polite">Your memories are saved in this browser on this device.</p>
+        </div>
+      </div>
+      <form id="memoryForm">
+        <div class="memory-form">
+          <div class="memory-field">
+            <label for="memoryTitle">Memory title *</label>
+            <input id="memoryTitle" name="title" maxlength="80" required placeholder="A moment worth keeping">
+          </div>
+          <div class="memory-field">
+            <label for="memoryDate">Date</label>
+            <input id="memoryDate" name="date" type="date">
+          </div>
+          <div class="memory-field full">
+            <label for="memoryCaption">Your note</label>
+            <textarea id="memoryCaption" name="caption" maxlength="1200" placeholder="Write what you want to remember..."></textarea>
+          </div>
+          <div class="memory-field full">
+            <label for="memoryPhoto">Photo (optional)</label>
+            <input id="memoryPhoto" name="photo" type="file" accept="image/jpeg,image/png,image/webp,image/gif">
+          </div>
+        </div>
+        <div class="memory-form-actions">
+          <button class="btn" type="submit" id="memorySaveButton">Save memory +</button>
+          <button class="btn secondary" type="button" id="memoryCancelButton" hidden>Cancel edit</button>
+        </div>
+      </form>
+      <div class="memory-list-head">
+        <h4>Saved memories</h4>
+        <span class="memory-count" id="memoryCount">0 memories</span>
+      </div>
+      <div id="memoryList" class="saved-memory-grid"></div>
+      <p class="memory-private-note">Privacy note: memories stay in this browser's local storage. They are not uploaded to a server or synced to other devices. Clearing this browser's site data can remove them, so export/backup is recommended for important memories.</p>
     </div>
   </section>
 
@@ -543,6 +618,182 @@ footer a { color: #bbb; text-decoration: none; }
   } else {
     revealItems.forEach(item => item.classList.add("visible"));
   }
+
+
+  // Memory archive: stores entries in this browser only; no external service is contacted.
+  const memoryStorageKey = "foreverus.memories.v1";
+  const memoryForm = document.getElementById("memoryForm");
+  const memoryList = document.getElementById("memoryList");
+  const memoryStatus = document.getElementById("memoryStatus");
+  const memoryCount = document.getElementById("memoryCount");
+  const memorySaveButton = document.getElementById("memorySaveButton");
+  const memoryCancelButton = document.getElementById("memoryCancelButton");
+  const memoryPhoto = document.getElementById("memoryPhoto");
+  let memories = [];
+  let editingMemoryId = null;
+
+  const setMemoryStatus = (message) => { memoryStatus.textContent = message; };
+  const loadMemories = () => {
+    try {
+      const parsed = JSON.parse(localStorage.getItem(memoryStorageKey) || "[]");
+      memories = Array.isArray(parsed) ? parsed.filter(item =>
+        item && typeof item.id === "string" && typeof item.title === "string"
+      ) : [];
+    } catch (_) {
+      memories = [];
+      setMemoryStatus("Saved memories could not be read. Browser storage may be unavailable.");
+    }
+  };
+  const persistMemories = () => {
+    try {
+      localStorage.setItem(memoryStorageKey, JSON.stringify(memories));
+      return true;
+    } catch (_) {
+      setMemoryStatus("Could not save. The photo may be too large or this browser's storage may be full. Try a smaller photo.");
+      return false;
+    }
+  };
+  const makeMemoryNode = (memory) => {
+    const article = document.createElement("article");
+    article.className = "saved-memory";
+    if (memory.photo) {
+      const img = document.createElement("img");
+      img.src = memory.photo;
+      img.alt = memory.title ? "Photo for " + memory.title : "Saved memory photo";
+      img.loading = "lazy";
+      article.appendChild(img);
+    }
+    const copy = document.createElement("div");
+    copy.className = "saved-memory-copy";
+    const date = document.createElement("div");
+    date.className = "saved-memory-date";
+    date.textContent = memory.date ? new Date(memory.date + "T12:00:00").toLocaleDateString(undefined,{year:"numeric",month:"long",day:"numeric"}) : "UNDATED MEMORY";
+    const title = document.createElement("h5");
+    title.textContent = memory.title;
+    copy.append(date,title);
+    if (memory.caption) {
+      const caption = document.createElement("p");
+      caption.textContent = memory.caption;
+      copy.appendChild(caption);
+    }
+    const actions = document.createElement("div");
+    actions.className = "saved-memory-actions";
+    const edit = document.createElement("button");
+    edit.type = "button"; edit.className = "text-action"; edit.textContent = "Edit";
+    edit.addEventListener("click", () => {
+      editingMemoryId = memory.id;
+      document.getElementById("memoryTitle").value = memory.title;
+      document.getElementById("memoryDate").value = memory.date || "";
+      document.getElementById("memoryCaption").value = memory.caption || "";
+      memoryPhoto.value = "";
+      memorySaveButton.textContent = "Update memory ✓";
+      memoryCancelButton.hidden = false;
+      setMemoryStatus("Editing: " + memory.title + ". Choose a new photo only if you want to replace the current one.");
+      document.getElementById("memoryTitle").focus();
+      document.getElementById("memoryWorkspace").scrollIntoView({behavior: reducedMotion ? "auto" : "smooth",block:"start"});
+    });
+    const remove = document.createElement("button");
+    remove.type = "button"; remove.className = "text-action danger"; remove.textContent = "Delete";
+    remove.addEventListener("click", () => {
+      if (!window.confirm("Delete this saved memory? This cannot be undone.")) return;
+      const old = memories;
+      memories = memories.filter(item => item.id !== memory.id);
+      if (!persistMemories()) { memories = old; return; }
+      if (editingMemoryId === memory.id) resetMemoryForm();
+      renderMemories();
+      setMemoryStatus("Memory deleted from this browser.");
+    });
+    actions.append(edit,remove);
+    copy.appendChild(actions);
+    article.appendChild(copy);
+    return article;
+  };
+  const renderMemories = () => {
+    memoryList.replaceChildren();
+    memoryCount.textContent = memories.length + (memories.length === 1 ? " memory" : " memories");
+    if (!memories.length) {
+      const empty = document.createElement("div");
+      empty.className = "memory-empty";
+      empty.style.gridColumn = "1 / -1";
+      empty.textContent = "No saved memories yet. Add your first moment above.";
+      memoryList.appendChild(empty);
+      return;
+    }
+    [...memories].sort((a,b) => (b.createdAt || "").localeCompare(a.createdAt || "")).forEach(memory => {
+      memoryList.appendChild(makeMemoryNode(memory));
+    });
+  };
+  const resetMemoryForm = () => {
+    memoryForm.reset();
+    editingMemoryId = null;
+    memorySaveButton.textContent = "Save memory +";
+    memoryCancelButton.hidden = true;
+  };
+  const readOptimizedPhoto = (file) => new Promise((resolve,reject) => {
+    if (!file) { resolve(null); return; }
+    if (!file.type.startsWith("image/")) { reject(new Error("Please choose an image file.")); return; }
+    if (file.size > 12 * 1024 * 1024) { reject(new Error("Please choose a photo smaller than 12 MB.")); return; }
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error("Could not read that photo."));
+    reader.onload = () => {
+      const source = new Image();
+      source.onerror = () => {
+        if (file.type === "image/gif") { resolve(String(reader.result)); return; }
+        reject(new Error("This image could not be opened. Try a JPG or PNG photo."));
+      };
+      source.onload = () => {
+        if (file.type === "image/gif") { resolve(String(reader.result)); return; }
+        const maxEdge = 1400;
+        const scale = Math.min(1, maxEdge / Math.max(source.naturalWidth, source.naturalHeight));
+        const canvas = document.createElement("canvas");
+        canvas.width = Math.max(1, Math.round(source.naturalWidth * scale));
+        canvas.height = Math.max(1, Math.round(source.naturalHeight * scale));
+        const context = canvas.getContext("2d");
+        if (!context) { reject(new Error("Photo processing is not supported by this browser.")); return; }
+        context.drawImage(source,0,0,canvas.width,canvas.height);
+        resolve(canvas.toDataURL("image/jpeg",0.78));
+      };
+      source.src = String(reader.result);
+    };
+    reader.readAsDataURL(file);
+  });
+  memoryForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const title = document.getElementById("memoryTitle").value.trim();
+    if (!title) { setMemoryStatus("Please enter a title for this memory."); return; }
+    memorySaveButton.disabled = true;
+    setMemoryStatus("Saving your memory…");
+    try {
+      const photo = await readOptimizedPhoto(memoryPhoto.files[0] || null);
+      const existing = editingMemoryId ? memories.find(item => item.id === editingMemoryId) : null;
+      const entry = {
+        id: existing ? existing.id : (window.crypto && crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random().toString(16).slice(2)),
+        title,
+        date: document.getElementById("memoryDate").value,
+        caption: document.getElementById("memoryCaption").value.trim(),
+        photo: photo || (existing ? existing.photo || null : null),
+        createdAt: existing ? existing.createdAt : new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+      const old = memories;
+      memories = existing ? memories.map(item => item.id === entry.id ? entry : item) : [entry,...memories];
+      if (!persistMemories()) { memories = old; return; }
+      resetMemoryForm();
+      renderMemories();
+      setMemoryStatus(existing ? "Memory updated and saved in this browser." : "Memory saved in this browser. It will remain after refresh on this device.");
+    } catch (error) {
+      setMemoryStatus(error && error.message ? error.message : "Could not save this memory.");
+    } finally {
+      memorySaveButton.disabled = false;
+    }
+  });
+  memoryCancelButton.addEventListener("click", () => {
+    resetMemoryForm();
+    setMemoryStatus("Edit cancelled. Your saved memory was not changed.");
+  });
+  loadMemories();
+  renderMemories();
+
 
   const sectionLinks = document.querySelectorAll(".navlinks a");
   if ("IntersectionObserver" in window) {
