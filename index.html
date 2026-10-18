@@ -668,8 +668,15 @@ footer a { color: #bbb; text-decoration: none; }
   }
 
 
-  // Memory archive: stores entries in this browser only; no external service is contacted.
+  // ForeverUs memory archive: local storage by default, private cloud after sign-in.
   const memoryStorageKey = "foreverus.memories.v1";
+  const supabaseUrl = "https://sqtbwgcxipzdwfwgcanh.supabase.co";
+  const supabasePublishableKey = "sb_publishable_bmijJRRugbc9Y7t206mGPQ_HWbrDf-G";
+  const memoryBucket = "foreverus-photos";
+  const cloudTable = "foreverus_memories";
+  const supabaseClient = window.supabase && window.supabase.createClient
+    ? window.supabase.createClient(supabaseUrl, supabasePublishableKey)
+    : null;
   const memoryForm = document.getElementById("memoryForm");
   const memoryList = document.getElementById("memoryList");
   const memoryStatus = document.getElementById("memoryStatus");
@@ -680,10 +687,19 @@ footer a { color: #bbb; text-decoration: none; }
   const exportMemoriesButton = document.getElementById("exportMemoriesButton");
   const importMemoriesButton = document.getElementById("importMemoriesButton");
   const importMemoriesFile = document.getElementById("importMemoriesFile");
+  const cloudEmail = document.getElementById("cloudEmail");
+  const cloudPassword = document.getElementById("cloudPassword");
+  const cloudStatus = document.getElementById("cloudStatus");
+  const cloudSignInButton = document.getElementById("cloudSignInButton");
+  const cloudSignUpButton = document.getElementById("cloudSignUpButton");
+  const cloudSignOutButton = document.getElementById("cloudSignOutButton");
   let memories = [];
   let editingMemoryId = null;
+  let cloudUser = null;
+  let cloudBusy = false;
 
   const setMemoryStatus = (message) => { memoryStatus.textContent = message; };
+  const setCloudStatus = (message) => { cloudStatus.textContent = message; };
   const loadMemories = () => {
     try {
       const parsed = JSON.parse(localStorage.getItem(memoryStorageKey) || "[]");
@@ -696,12 +712,158 @@ footer a { color: #bbb; text-decoration: none; }
     }
   };
   const persistMemories = () => {
+    if (cloudUser) return true;
     try {
       localStorage.setItem(memoryStorageKey, JSON.stringify(memories));
       return true;
     } catch (_) {
       setMemoryStatus("Could not save. The photo may be too large or this browser's storage may be full. Try a smaller photo.");
       return false;
+    }
+  };
+  const dataUrlToBlob = (dataUrl) => {
+    const parts = dataUrl.split(",");
+    const mime = (parts[0].match(/data:([^;]+)/) || [])[1] || "image/jpeg";
+    const binary = atob(parts[1] || "");
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+    return new Blob([bytes], { type: mime });
+  };
+  const blobToDataUrl = (blob) => new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result));
+    reader.onerror = () => reject(new Error("Could not read a photo downloaded from cloud storage."));
+    reader.readAsDataURL(blob);
+  });
+  const uploadPhoto = async (userId, memoryId, dataUrl) => {
+    if (!dataUrl || !dataUrl.startsWith("data:image/")) return null;
+    const blob = dataUrlToBlob(dataUrl);
+    if (blob.size > 10 * 1024 * 1024) throw new Error("Cloud photos must be smaller than 10 MB.");
+    const extension = blob.type === "image/png" ? "png" : blob.type === "image/webp" ? "webp" : blob.type === "image/gif" ? "gif" : "jpg";
+    const path = userId + "/" + memoryId + "." + extension;
+    const { error } = await supabaseClient.storage.from(memoryBucket).upload(path, blob, {
+      contentType: blob.type, upsert: true
+    });
+    if (error) throw error;
+    return path;
+  };
+  const saveCloudMemory = async (entry, existing) => {
+    const oldPath = existing && existing.photoPath ? existing.photoPath : null;
+    let photoPath = oldPath;
+    if (entry.photo && entry.photo.startsWith("data:image/")) {
+      photoPath = await uploadPhoto(cloudUser.id, entry.id, entry.photo);
+    } else if (!entry.photo) {
+      photoPath = null;
+    }
+    const row = {
+      id: entry.id,
+      user_id: cloudUser.id,
+      title: entry.title,
+      memory_date: entry.date || null,
+      caption: entry.caption || "",
+      photo_path: photoPath,
+      updated_at: new Date().toISOString()
+    };
+    const { error } = await supabaseClient.from(cloudTable).upsert(row, { onConflict: "id" });
+    if (error) throw error;
+    if (oldPath && oldPath !== photoPath) {
+      await supabaseClient.storage.from(memoryBucket).remove([oldPath]);
+    }
+    return { ...entry, photoPath };
+  };
+  const loadCloudMemories = async () => {
+    const { data, error } = await supabaseClient.from(cloudTable)
+      .select("id,user_id,title,memory_date,caption,photo_path,created_at,updated_at")
+      .eq("user_id", cloudUser.id)
+      .order("created_at", { ascending: false });
+    if (error) throw error;
+    const result = [];
+    for (const row of (data || [])) {
+      let photo = null;
+      if (row.photo_path) {
+        const { data: signed, error: signedError } = await supabaseClient.storage
+          .from(memoryBucket).createSignedUrl(row.photo_path, 300);
+        if (!signedError && signed && signed.signedUrl) {
+          try {
+            const response = await fetch(signed.signedUrl);
+            if (response.ok) photo = await blobToDataUrl(await response.blob());
+          } catch (_) {}
+        }
+      }
+      result.push({
+        id: row.id, title: row.title, date: row.memory_date || "",
+        caption: row.caption || "", photo, photoPath: row.photo_path || null,
+        createdAt: row.created_at, updatedAt: row.updated_at
+      });
+    }
+    return result;
+  };
+  const migrateLocalMemoriesToCloud = async () => {
+    const localCopy = memories.map(item => ({ ...item }));
+    const migrated = [];
+    for (const old of localCopy) {
+      const entry = {
+        id: window.crypto && crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random().toString(16).slice(2),
+        title: old.title, date: old.date || "", caption: old.caption || "",
+        photo: old.photo || null, createdAt: old.createdAt || new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+      migrated.push(await saveCloudMemory(entry, null));
+    }
+    memories = await loadCloudMemories();
+    try { localStorage.setItem(memoryStorageKey, JSON.stringify(localCopy)); } catch (_) {}
+    renderMemories();
+    setMemoryStatus("Your device memories have been copied to your private cloud archive. The original local copy is kept as a backup.");
+  };
+  const activateCloud = async (user) => {
+    if (!user || !supabaseClient) return;
+    cloudBusy = true;
+    cloudUser = user;
+    cloudSignInButton.disabled = true;
+    cloudSignUpButton.disabled = true;
+    setCloudStatus("Signed in. Checking your private archive…");
+    try {
+      const cloudRows = await loadCloudMemories();
+      if (cloudRows.length) {
+        if (memories.length && !window.confirm("A cloud archive already exists. Use it on this device? The current device archive will be replaced in this browser. Export a backup first if you want to preserve it.")) {
+          cloudUser = null;
+          await supabaseClient.auth.signOut();
+          setCloudStatus("Sign-in cancelled. Your device archive remains unchanged.");
+          return;
+        }
+        memories = cloudRows;
+        renderMemories();
+        setMemoryStatus("Your private cloud archive is loaded. Changes will sync to this account.");
+        setCloudStatus("Signed in. Private cloud sync is active.");
+      } else if (memories.length) {
+        if (window.confirm("Your cloud archive is empty. Copy the " + memories.length + " memories on this device, including available photos, into your private cloud account? Your local backup will be kept.")) {
+          await migrateLocalMemoriesToCloud();
+          setCloudStatus("Signed in. Private cloud sync is active.");
+        } else {
+          cloudUser = null;
+          await supabaseClient.auth.signOut();
+          setCloudStatus("Cloud setup paused. Your device memories remain unchanged.");
+          return;
+        }
+      } else {
+        memories = [];
+        renderMemories();
+        setMemoryStatus("Private cloud archive is ready. New memories will sync to your account.");
+        setCloudStatus("Signed in. Private cloud sync is active.");
+      }
+      cloudSignInButton.hidden = true;
+      cloudSignUpButton.hidden = true;
+      cloudSignOutButton.hidden = false;
+      cloudEmail.disabled = true;
+      cloudPassword.disabled = true;
+    } catch (error) {
+      cloudUser = null;
+      setCloudStatus("Could not load the cloud archive: " + (error.message || "Please try again."));
+      await supabaseClient.auth.signOut();
+    } finally {
+      cloudBusy = false;
+      cloudSignInButton.disabled = false;
+      cloudSignUpButton.disabled = false;
     }
   };
   const makeMemoryNode = (memory) => {
@@ -745,14 +907,24 @@ footer a { color: #bbb; text-decoration: none; }
     });
     const remove = document.createElement("button");
     remove.type = "button"; remove.className = "text-action danger"; remove.textContent = "Delete";
-    remove.addEventListener("click", () => {
+    remove.addEventListener("click", async () => {
       if (!window.confirm("Delete this saved memory? This cannot be undone.")) return;
       const old = memories;
-      memories = memories.filter(item => item.id !== memory.id);
-      if (!persistMemories()) { memories = old; return; }
-      if (editingMemoryId === memory.id) resetMemoryForm();
-      renderMemories();
-      setMemoryStatus("Memory deleted from this browser.");
+      try {
+        if (cloudUser) {
+          const { error } = await supabaseClient.from(cloudTable).delete().eq("id", memory.id).eq("user_id", cloudUser.id);
+          if (error) throw error;
+          if (memory.photoPath) await supabaseClient.storage.from(memoryBucket).remove([memory.photoPath]);
+        }
+        memories = memories.filter(item => item.id !== memory.id);
+        if (!cloudUser && !persistMemories()) { memories = old; return; }
+        if (editingMemoryId === memory.id) resetMemoryForm();
+        renderMemories();
+        setMemoryStatus(cloudUser ? "Memory deleted from your private cloud archive." : "Memory deleted from this browser.");
+      } catch (error) {
+        memories = old;
+        setMemoryStatus("Could not delete the memory: " + (error.message || "Please try again."));
+      }
     });
     actions.append(edit,remove);
     copy.appendChild(actions);
@@ -812,6 +984,7 @@ footer a { color: #bbb; text-decoration: none; }
     event.preventDefault();
     const title = document.getElementById("memoryTitle").value.trim();
     if (!title) { setMemoryStatus("Please enter a title for this memory."); return; }
+    if (cloudBusy) { setMemoryStatus("Cloud sync is busy. Please wait."); return; }
     memorySaveButton.disabled = true;
     setMemoryStatus("Saving your memory…");
     try {
@@ -823,15 +996,26 @@ footer a { color: #bbb; text-decoration: none; }
         date: document.getElementById("memoryDate").value,
         caption: document.getElementById("memoryCaption").value.trim(),
         photo: photo || (existing ? existing.photo || null : null),
+        photoPath: existing ? existing.photoPath || null : null,
         createdAt: existing ? existing.createdAt : new Date().toISOString(),
         updatedAt: new Date().toISOString()
       };
-      const old = memories;
-      memories = existing ? memories.map(item => item.id === entry.id ? entry : item) : [entry,...memories];
-      if (!persistMemories()) { memories = old; return; }
-      resetMemoryForm();
-      renderMemories();
-      setMemoryStatus(existing ? "Memory updated and saved in this browser." : "Memory saved in this browser. It will remain after refresh on this device.");
+      if (cloudUser) {
+        if (!window.crypto || !crypto.randomUUID) throw new Error("This browser does not support secure cloud memory IDs. Please update your browser.");
+        if (!existing && !/^[0-9a-f-]{36}$/i.test(entry.id)) entry.id = crypto.randomUUID();
+        const saved = await saveCloudMemory(entry, existing);
+        memories = existing ? memories.map(item => item.id === saved.id ? saved : item) : [saved,...memories];
+        resetMemoryForm();
+        renderMemories();
+        setMemoryStatus(existing ? "Memory updated and synced to your private cloud." : "Memory saved and synced to your private cloud.");
+      } else {
+        const old = memories;
+        memories = existing ? memories.map(item => item.id === entry.id ? entry : item) : [entry,...memories];
+        if (!persistMemories()) { memories = old; return; }
+        resetMemoryForm();
+        renderMemories();
+        setMemoryStatus(existing ? "Memory updated and saved in this browser." : "Memory saved in this browser. It will remain after refresh on this device.");
+      }
     } catch (error) {
       setMemoryStatus(error && error.message ? error.message : "Could not save this memory.");
     } finally {
@@ -839,12 +1023,7 @@ footer a { color: #bbb; text-decoration: none; }
     }
   });
   exportMemoriesButton.addEventListener("click", () => {
-    const backup = {
-      app: "ForeverUs",
-      version: 1,
-      exportedAt: new Date().toISOString(),
-      memories
-    };
+    const backup = { app: "ForeverUs", version: 1, exportedAt: new Date().toISOString(), memories };
     const blob = new Blob([JSON.stringify(backup, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
@@ -853,7 +1032,7 @@ footer a { color: #bbb; text-decoration: none; }
     document.body.appendChild(link);
     link.click();
     link.remove();
-    URL.revokeObjectURL(url);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
     setMemoryStatus("Backup exported. Keep the JSON file somewhere safe.");
   });
   importMemoriesButton.addEventListener("click", () => importMemoriesFile.click());
@@ -872,16 +1051,36 @@ footer a { color: #bbb; text-decoration: none; }
         (item.photo === undefined || item.photo === null || typeof item.photo === "string")
       );
       if (!valid) throw new Error("The backup contains an invalid memory entry.");
-      if (!window.confirm("Import this backup and replace all memories currently saved in this browser? Export your current memories first if you want to keep them.")) return;
-      const previousMemories = memories;
-      memories = parsed.memories;
-      if (!persistMemories()) {
-        memories = previousMemories;
-        return;
+      const replaceText = cloudUser
+        ? "Import this backup and replace all memories in your private cloud archive? This cannot be undone."
+        : "Import this backup and replace all memories currently saved in this browser? Export your current memories first if you want to keep them.";
+      if (!window.confirm(replaceText)) return;
+      if (cloudUser) {
+        const { data: oldRows, error: listError } = await supabaseClient.from(cloudTable).select("id,photo_path").eq("user_id", cloudUser.id);
+        if (listError) throw listError;
+        const oldPaths = (oldRows || []).map(row => row.photo_path).filter(Boolean);
+        if (oldPaths.length) await supabaseClient.storage.from(memoryBucket).remove(oldPaths);
+        const { error: deleteError } = await supabaseClient.from(cloudTable).delete().eq("user_id", cloudUser.id);
+        if (deleteError) throw deleteError;
+        for (const old of parsed.memories) {
+          const entry = {
+            id: crypto.randomUUID(), title: old.title, date: old.date || "", caption: old.caption || "",
+            photo: old.photo || null, createdAt: old.createdAt || new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+          };
+          await saveCloudMemory(entry, null);
+        }
+        memories = await loadCloudMemories();
+        renderMemories();
+        setMemoryStatus("Backup restored to your private cloud archive.");
+      } else {
+        const previousMemories = memories;
+        memories = parsed.memories;
+        if (!persistMemories()) { memories = previousMemories; return; }
+        resetMemoryForm();
+        renderMemories();
+        setMemoryStatus("Backup restored: " + memories.length + (memories.length === 1 ? " memory." : " memories."));
       }
-      resetMemoryForm();
-      renderMemories();
-      setMemoryStatus("Backup restored: " + memories.length + (memories.length === 1 ? " memory." : " memories."));
     } catch (error) {
       setMemoryStatus(error && error.message ? error.message : "Could not import this backup file.");
     } finally {
@@ -892,8 +1091,89 @@ footer a { color: #bbb; text-decoration: none; }
     resetMemoryForm();
     setMemoryStatus("Edit cancelled. Your saved memory was not changed.");
   });
+
+  const validateCloudFields = () => {
+    if (!supabaseClient) {
+      setCloudStatus("Cloud sign-in could not start because the Supabase client did not load. Check your internet connection and reload.");
+      return false;
+    }
+    if (!cloudEmail.value.trim() || !cloudPassword.value) {
+      setCloudStatus("Enter your email and password first.");
+      return false;
+    }
+    if (cloudPassword.value.length < 8) {
+      setCloudStatus("Use a password with at least 8 characters.");
+      return false;
+    }
+    return true;
+  };
+  cloudSignInButton.addEventListener("click", async () => {
+    if (!validateCloudFields()) return;
+    cloudSignInButton.disabled = true;
+    cloudSignUpButton.disabled = true;
+    setCloudStatus("Signing in…");
+    try {
+      const { data, error } = await supabaseClient.auth.signInWithPassword({
+        email: cloudEmail.value.trim(), password: cloudPassword.value
+      });
+      if (error) throw error;
+      await activateCloud(data.user);
+    } catch (error) {
+      setCloudStatus("Sign-in failed: " + (error.message || "Please check your email and password."));
+    } finally {
+      cloudSignInButton.disabled = false;
+      cloudSignUpButton.disabled = false;
+    }
+  });
+  cloudSignUpButton.addEventListener("click", async () => {
+    if (!validateCloudFields()) return;
+    cloudSignInButton.disabled = true;
+    cloudSignUpButton.disabled = true;
+    setCloudStatus("Creating your account…");
+    try {
+      const { data, error } = await supabaseClient.auth.signUp({
+        email: cloudEmail.value.trim(), password: cloudPassword.value
+      });
+      if (error) throw error;
+      if (data.session && data.user) {
+        await activateCloud(data.user);
+      } else {
+        setCloudStatus("Account request submitted. Check your email for a verification link, then return here and sign in.");
+      }
+    } catch (error) {
+      setCloudStatus("Could not create account: " + (error.message || "Please try again."));
+    } finally {
+      cloudSignInButton.disabled = false;
+      cloudSignUpButton.disabled = false;
+    }
+  });
+  cloudSignOutButton.addEventListener("click", async () => {
+    if (!supabaseClient || !cloudUser) return;
+    cloudSignOutButton.disabled = true;
+    try {
+      const { error } = await supabaseClient.auth.signOut();
+      if (error) throw error;
+      cloudUser = null;
+      cloudSignInButton.hidden = false;
+      cloudSignUpButton.hidden = false;
+      cloudSignOutButton.hidden = true;
+      cloudEmail.disabled = false;
+      cloudPassword.disabled = false;
+      loadMemories();
+      renderMemories();
+      setCloudStatus("Signed out. Memories shown here are from this device only.");
+      setMemoryStatus("Your memories are saved in this browser on this device.");
+    } catch (error) {
+      setCloudStatus("Could not sign out: " + (error.message || "Please try again."));
+    } finally {
+      cloudSignOutButton.disabled = false;
+    }
+  });
   loadMemories();
   renderMemories();
+  if (!supabaseClient) {
+    setCloudStatus("Cloud sign-in is unavailable until the Supabase client loads. Your local archive still works.");
+  }
 
 
   const sectionLinks = document.querySelectorAll(".navlinks a");
