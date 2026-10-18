@@ -382,6 +382,10 @@ footer a { color: #bbb; text-decoration: none; }
 .memory-field input[type=file]{font-size:12px}
 .memory-field textarea{min-height:95px;resize:vertical}
 .memory-form-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:18px}
+.memory-backup{margin:24px 0;padding:18px;border:1px solid #292929;background:#090909}
+.memory-backup p{color:#888;font-size:12px;margin:7px 0 14px}
+.memory-backup-actions{display:flex;gap:10px;flex-wrap:wrap}
+.memory-backup input[type=file]{display:none}
 .memory-form .btn{appearance:none}
 .memory-list-head{display:flex;justify-content:space-between;align-items:center;gap:12px;margin:34px 0 15px;padding-top:22px;border-top:1px solid #292929}
 .memory-list-head h4{margin:0;font-size:12px;letter-spacing:2px;font-weight:500;text-transform:uppercase}
@@ -499,6 +503,15 @@ footer a { color: #bbb; text-decoration: none; }
           <span class="kicker">YOUR PERSONAL ARCHIVE</span>
           <h3>Keep a moment.</h3>
           <p class="memory-status" id="memoryStatus" role="status" aria-live="polite">Your memories are saved in this browser on this device.</p>
+        </div>
+      </div>
+      <div class="memory-backup">
+        <span class="kicker">BACKUP & RESTORE</span>
+        <p>Export a copy of your memories, including photos, or restore a backup on this device. Keep the backup file somewhere safe.</p>
+        <div class="memory-backup-actions">
+          <button class="btn secondary" type="button" id="exportMemoriesButton">Export backup ↓</button>
+          <button class="btn secondary" type="button" id="importMemoriesButton">Import backup ↑</button>
+          <input id="importMemoriesFile" type="file" accept="application/json,.json">
         </div>
       </div>
       <form id="memoryForm">
@@ -664,6 +677,9 @@ footer a { color: #bbb; text-decoration: none; }
   const memorySaveButton = document.getElementById("memorySaveButton");
   const memoryCancelButton = document.getElementById("memoryCancelButton");
   const memoryPhoto = document.getElementById("memoryPhoto");
+  const exportMemoriesButton = document.getElementById("exportMemoriesButton");
+  const importMemoriesButton = document.getElementById("importMemoriesButton");
+  const importMemoriesFile = document.getElementById("importMemoriesFile");
   let memories = [];
   let editingMemoryId = null;
 
@@ -820,6 +836,56 @@ footer a { color: #bbb; text-decoration: none; }
       setMemoryStatus(error && error.message ? error.message : "Could not save this memory.");
     } finally {
       memorySaveButton.disabled = false;
+    }
+  });
+  exportMemoriesButton.addEventListener("click", () => {
+    const backup = {
+      app: "ForeverUs",
+      version: 1,
+      exportedAt: new Date().toISOString(),
+      memories
+    };
+    const blob = new Blob([JSON.stringify(backup, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "foreverus-memories-backup-" + new Date().toISOString().slice(0,10) + ".json";
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+    setMemoryStatus("Backup exported. Keep the JSON file somewhere safe.");
+  });
+  importMemoriesButton.addEventListener("click", () => importMemoriesFile.click());
+  importMemoriesFile.addEventListener("change", async () => {
+    const file = importMemoriesFile.files && importMemoriesFile.files[0];
+    if (!file) return;
+    try {
+      const parsed = JSON.parse(await file.text());
+      if (!parsed || parsed.app !== "ForeverUs" || parsed.version !== 1 || !Array.isArray(parsed.memories)) {
+        throw new Error("This file is not a supported ForeverUs backup.");
+      }
+      const valid = parsed.memories.every(item =>
+        item && typeof item.id === "string" && typeof item.title === "string" &&
+        (item.date === undefined || typeof item.date === "string") &&
+        (item.caption === undefined || typeof item.caption === "string") &&
+        (item.photo === undefined || item.photo === null || typeof item.photo === "string")
+      );
+      if (!valid) throw new Error("The backup contains an invalid memory entry.");
+      if (!window.confirm("Import this backup and replace all memories currently saved in this browser? Export your current memories first if you want to keep them.")) return;
+      const previousMemories = memories;
+      memories = parsed.memories;
+      if (!persistMemories()) {
+        memories = previousMemories;
+        return;
+      }
+      resetMemoryForm();
+      renderMemories();
+      setMemoryStatus("Backup restored: " + memories.length + (memories.length === 1 ? " memory." : " memories."));
+    } catch (error) {
+      setMemoryStatus(error && error.message ? error.message : "Could not import this backup file.");
+    } finally {
+      importMemoriesFile.value = "";
     }
   });
   memoryCancelButton.addEventListener("click", () => {
