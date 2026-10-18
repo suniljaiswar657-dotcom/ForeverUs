@@ -363,6 +363,11 @@ footer a { color: #bbb; text-decoration: none; }
 @media (prefers-reduced-motion: reduce){*,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;scroll-behavior:auto!important;transition-duration:.01ms!important}}
 
 
+/* The Beginning — monochrome journey archive */
+.beginning-grid .card { min-height: 245px; }
+.beginning-grid .card-icon { font-family: var(--display); }
+@media(max-width:720px){.beginning-grid .card{min-height:auto}}
+
 /* Functional memory archive */
 .memory-workspace{margin-top:26px;padding:clamp(20px,4vw,34px);border:1px solid #303030;background:#070707}
 .memory-workspace-head{display:flex;justify-content:space-between;align-items:flex-start;gap:18px;flex-wrap:wrap;margin-bottom:24px}
@@ -408,6 +413,7 @@ footer a { color: #bbb; text-decoration: none; }
     <button class="menu-button" id="menuButton" aria-expanded="false" aria-controls="navlinks">MENU +</button>
     <nav class="navlinks" id="navlinks">
       <a href="#home">Home</a>
+      <a href="#beginning">The Beginning</a>
       <a href="#memories">Memories</a>
       <a href="#story">Our Story</a>
       <a href="#future">Our Future</a>
@@ -429,6 +435,35 @@ footer a { color: #bbb; text-decoration: none; }
 </section>
 
 <main>
+  <section class="section" id="beginning">
+    <div class="section-head reveal">
+      <span class="kicker">00 — THE BEGINNING</span>
+      <h2>Built slowly.<br>Kept with care.</h2>
+      <p>ForeverUs is a personal space for memories, stories and future dreams — built one thoughtful step at a time, without rushing the journey.</p>
+    </div>
+
+    <div class="grid beginning-grid">
+      <article class="card reveal">
+        <div class="card-icon">◇</div>
+        <span class="card-number">THE IDEA / 001</span>
+        <h3>A Place to Keep</h3>
+        <p>A dedicated place for the moments, words and dreams you choose to preserve. Nothing personal is added without your say.</p>
+      </article>
+      <article class="card reveal">
+        <div class="card-icon">01</div>
+        <span class="card-number">LITTLE STEPS / 002</span>
+        <h3>The First Working Step</h3>
+        <p>The Memory Archive can save a title, date, note and optional photo in this browser on this device. It is a real first step, not just a design.</p>
+      </article>
+      <article class="card reveal">
+        <div class="card-icon">∞</div>
+        <span class="card-number">THE PROMISE / 003</span>
+        <h3>One Step at a Time</h3>
+        <p>Keep the original spirit, make changes carefully, and let each new chapter earn its place. The journey matters too.</p>
+      </article>
+    </div>
+  </section>
+
   <section class="section" id="memories">
     <div class="section-head reveal">
       <span class="kicker">01 — THE ARCHIVE</span>
