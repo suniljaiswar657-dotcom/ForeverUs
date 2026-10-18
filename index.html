@@ -405,6 +405,14 @@ footer a { color: #bbb; text-decoration: none; }
 .memory-private-note{font-size:11px;color:#777;margin:17px 0 0}
 @media(max-width:600px){.memory-form{grid-template-columns:1fr}.memory-field.full{grid-column:auto}.saved-memory-grid{grid-template-columns:1fr}.memory-workspace{padding:18px}.saved-memory img{max-height:300px}}
 
+
+.memory-cloud{margin:24px 0;padding:18px;border:1px solid #303030;background:#080808}
+.memory-cloud p,.memory-cloud-note{color:#888;font-size:12px;margin:8px 0 14px}
+.memory-cloud-fields{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin:15px 0}
+.memory-cloud input{width:100%;min-width:0;background:#0c0c0c;color:#fff;border:1px solid #353535;padding:13px 14px;border-radius:0;font:inherit;font-size:14px}
+.memory-cloud input:focus{outline:1px solid #aaa;border-color:#aaa}
+@media(max-width:600px){.memory-cloud-fields{grid-template-columns:1fr}}
+
 </style>
 </head>
 
@@ -504,6 +512,20 @@ footer a { color: #bbb; text-decoration: none; }
           <h3>Keep a moment.</h3>
           <p class="memory-status" id="memoryStatus" role="status" aria-live="polite">Your memories are saved in this browser on this device.</p>
         </div>
+      </div>
+      <div class="memory-cloud">
+        <span class="kicker">PRIVATE CLOUD SYNC</span>
+        <p>Sign in to keep your memories available across devices. Your archive and photos are private to your account.</p>
+        <div class="memory-cloud-fields">
+          <div class="memory-field"><label for="cloudEmail">Email</label><input id="cloudEmail" type="email" autocomplete="email" required placeholder="you@example.com"></div>
+          <div class="memory-field"><label for="cloudPassword">Password</label><input id="cloudPassword" type="password" autocomplete="current-password" minlength="8" required placeholder="At least 8 characters"></div>
+        </div>
+        <div class="memory-backup-actions">
+          <button class="btn" type="button" id="cloudSignInButton">Sign in</button>
+          <button class="btn secondary" type="button" id="cloudSignUpButton">Create account</button>
+          <button class="btn secondary" type="button" id="cloudSignOutButton" hidden>Sign out</button>
+        </div>
+        <p class="memory-cloud-note" id="cloudStatus" role="status" aria-live="polite">Not signed in. Memories are currently saved on this device only.</p>
       </div>
       <div class="memory-backup">
         <span class="kicker">BACKUP & RESTORE</span>
@@ -617,6 +639,7 @@ footer a { color: #bbb; text-decoration: none; }
   <span>PURE BLACK · MONOCHROME</span>
 </footer>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
 (() => {
   "use strict";
