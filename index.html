@@ -694,6 +694,7 @@ footer a { color: #bbb; text-decoration: none; }
   // ForeverUs memory archive: local storage by default, private cloud after sign-in.
   const memoryStorageKey = "foreverus.memories.v1";
   const supabaseUrl = "https://sqtbwgcxipzdwfwgcanh.supabase.co";
+  const cloudRedirectUrl = "https://suniljaiswar657-dotcom.github.io/ForeverUs/";
   const supabasePublishableKey = "sb_publishable_bmijJRRugbc9Y7t206mGPQ_HWbrDf-G";
   const memoryBucket = "foreverus-photos";
   const cloudTable = "foreverus_memories";
@@ -1159,7 +1160,9 @@ footer a { color: #bbb; text-decoration: none; }
     setCloudStatus("Creating your account…");
     try {
       const { data, error } = await supabaseClient.auth.signUp({
-        email: cloudEmail.value.trim(), password: cloudPassword.value
+        email: cloudEmail.value.trim(),
+        password: cloudPassword.value,
+        options: { emailRedirectTo: cloudRedirectUrl }
       });
       if (error) throw error;
       if (data.session && data.user) {
