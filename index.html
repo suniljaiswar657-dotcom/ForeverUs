@@ -1,0 +1,143 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#1c101b">
+  <meta name="description" content="ForeverUs — Our memories, our dreams, our little universe.">
+  <title>ForeverUs ❤️</title>
+  <style>
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      font-family: Georgia, "Times New Roman", serif;
+      color: #fff0f5;
+      background: #160f19;
+      line-height: 1.7;
+    }
+    header {
+      padding: 18px 20px;
+      text-align: center;
+      border-bottom: 1px solid #593047;
+      background: #1d1320;
+    }
+    .brand { font-size: 25px; color: #f3a8c6; }
+    nav {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 18px;
+      margin-top: 8px;
+    }
+    nav a {
+      color: #f5dce8;
+      text-decoration: none;
+      font-size: 14px;
+    }
+    a:focus-visible, button:focus-visible {
+      outline: 2px solid #f3a8c6;
+      outline-offset: 4px;
+    }
+    .hero {
+      min-height: 78vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 55px 22px;
+      background:
+        radial-gradient(ellipse at top, #57243e 0%, transparent 65%),
+        linear-gradient(160deg, #211325, #160f19 75%);
+    }
+    .moon { font-size: 48px; margin-bottom: 12px; }
+    h1 { font-size: clamp(40px, 10vw, 66px); line-height: 1.15; margin: 0; }
+    .rose { color: #f3a8c6; }
+    .hero p { max-width: 420px; color: #e9cbd9; }
+    .button {
+      display: inline-block;
+      padding: 12px 22px;
+      margin-top: 14px;
+      border: 1px solid #e79cba;
+      border-radius: 28px;
+      color: #fff0f5;
+      background: #54233e;
+      text-decoration: none;
+      cursor: pointer;
+      font: inherit;
+    }
+    main { max-width: 760px; margin: auto; padding: 20px; }
+    section { padding: 48px 0; border-bottom: 1px solid #402437; }
+    h2 { color: #f3a8c6; font-size: 29px; }
+    .card {
+      background: #241824;
+      border: 1px solid #4c3045;
+      border-radius: 16px;
+      padding: 20px;
+      margin: 14px 0;
+    }
+    .symbol { font-size: 28px; }
+    .muted { color: #d5bdcc; font-size: 14px; }
+    footer { text-align: center; padding: 30px 16px; color: #d5bdcc; }
+    @media (prefers-reduced-motion: reduce) {
+      html { scroll-behavior: auto; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="brand">ForeverUs <span aria-hidden="true">♥</span></div>
+    <nav aria-label="Main navigation">
+      <a href="#home">Home</a>
+      <a href="#memories">Memories</a>
+      <a href="#story">Our Story</a>
+      <a href="#future">Our Future</a>
+    </nav>
+  </header>
+
+  <section class="hero" id="home">
+    <div class="moon" aria-hidden="true">☾ ✨</div>
+    <p class="rose">A LITTLE UNIVERSE OF OUR OWN</p>
+    <h1>Shiva <span class="rose">×</span> Alice</h1>
+    <h2>Forever ♥</h2>
+    <p>Our memories. Our dreams. Our little universe.</p>
+    <a class="button" href="#memories">Explore Our World ↓</a>
+  </section>
+
+  <main>
+    <section id="memories">
+      <h2>♥ Our Memories</h2>
+      <div class="card">
+        <div class="symbol">🌹</div>
+        <h3>Moments Worth Keeping</h3>
+        <p>Yahan hum apni pasand ki yaadein, messages aur photos add kar sakte hain.</p>
+        <p class="muted">Abhi koi personal memory publish nahi ki gayi hai.</p>
+      </div>
+    </section>
+
+    <section id="story">
+      <h2>✧ Our Story</h2>
+      <div class="card">
+        <p>Every meaningful story deserves a place to be remembered.</p>
+        <p>Yeh jagah hamari approved writings, favourite quotes aur special messages ke liye hai.</p>
+      </div>
+    </section>
+
+    <section id="future">
+      <h2>☾ Our Future</h2>
+      <div class="card">
+        <div class="symbol">✨</div>
+        <h3>Dreams Yet to Come</h3>
+        <p>Yahan Shiva ke goals, AI journey aur future milestones ko save kar sakte hain.</p>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <p>Made with care ♥ ForeverUs</p>
+    <p class="muted">A little universe for memories and dreams.</p>
+  </footer>
+</body>
+</html>
