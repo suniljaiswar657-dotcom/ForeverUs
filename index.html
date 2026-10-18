@@ -811,7 +811,7 @@ footer a { color: #bbb; text-decoration: none; }
       migrated.push(await saveCloudMemory(entry, null));
     }
     memories = await loadCloudMemories();
-    try { localStorage.setItem(memoryStorageKey, JSON.stringify(localCopy)); } catch (_) {}
+    try { localStorage.setItem("foreverus.memories.local-backup.v1", JSON.stringify(localCopy)); localStorage.removeItem(memoryStorageKey); } catch (_) {}
     renderMemories();
     setMemoryStatus("Your device memories have been copied to your private cloud archive. The original local copy is kept as a backup.");
   };
@@ -830,6 +830,10 @@ footer a { color: #bbb; text-decoration: none; }
           await supabaseClient.auth.signOut();
           setCloudStatus("Sign-in cancelled. Your device archive remains unchanged.");
           return;
+        }
+        if (memories.length) {
+          try { localStorage.setItem("foreverus.memories.local-backup.v1", JSON.stringify(memories)); } catch (_) {}
+          localStorage.removeItem(memoryStorageKey);
         }
         memories = cloudRows;
         renderMemories();
@@ -1171,6 +1175,12 @@ footer a { color: #bbb; text-decoration: none; }
   });
   loadMemories();
   renderMemories();
+  if (supabaseClient) {
+    supabaseClient.auth.getSession().then(({ data, error }) => {
+      if (error) { setCloudStatus("Could not restore the sign-in session. Please sign in again."); return; }
+      if (data && data.session && data.session.user) activateCloud(data.session.user);
+    }).catch(() => setCloudStatus("Could not restore the sign-in session. Please sign in again."));
+  }
   if (!supabaseClient) {
     setCloudStatus("Cloud sign-in is unavailable until the Supabase client loads. Your local archive still works.");
   }
